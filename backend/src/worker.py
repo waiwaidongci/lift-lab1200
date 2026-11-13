@@ -2,11 +2,13 @@ from .constants.status import RunStatus
 import json, time, traceback
 from pathlib import Path
 from .config.database import SessionLocal,engine,Base
+from .config.schema import ensure_schema
 from .models import AnalysisRun,Experiment,Observation
 from .services.run_service import queue
 from .services.statistics_service import analyze
 from .services.audit_service import log
 Base.metadata.create_all(engine)
+ensure_schema()
 Path("/artifacts").mkdir(exist_ok=True)
 while True:
     Path("/artifacts/heartbeat").write_text(str(time.time()))
@@ -19,7 +21,7 @@ while True:
         try:
             exp=db.get(Experiment,run.experiment_id)
             obs=db.query(Observation).filter_by(dataset_id=exp.dataset_id).all()
-            run.result=analyze(obs,exp.alpha,exp.cuped)
+            run.result=analyze(obs,exp.alpha,exp.cuped,exp.strata_bounds)
             run.status=RunStatus.COMPLETED
             Path(f"/artifacts/run-{run.id}.json").write_text(json.dumps(run.result,ensure_ascii=False))
             log(db,"worker","analysis.completed",run.id)
